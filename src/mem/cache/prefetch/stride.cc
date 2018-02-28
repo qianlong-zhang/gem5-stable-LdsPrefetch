@@ -108,6 +108,7 @@ StridePrefetcher::calculatePrefetch(const PacketPtr &pkt,
     // Get required packet info
     Addr pkt_addr = pkt->getAddr();
     Addr pc = pkt->req->getPC();
+    DPRINTF(HWPrefetch, "PC is 0x%lx, addr is 0x%lx", pc, pkt_addr);
     bool is_secure = pkt->isSecure();
     MasterID master_id = useMasterId ? pkt->req->masterId() : 0;
 

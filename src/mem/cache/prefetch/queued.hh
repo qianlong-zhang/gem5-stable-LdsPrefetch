@@ -103,6 +103,5 @@ class QueuedPrefetcher : public BasePrefetcher
 
     void regStats();
 };
-
 #endif //__MEM_CACHE_PREFETCH_QUEUED_HH__
 

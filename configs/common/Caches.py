@@ -53,6 +53,28 @@ class L1Cache(BaseCache):
     mshrs = 4
     tgts_per_mshr = 20
     is_top_level = True
+    prefetch_on_access = True
+    # Simple stride prefetcher
+    #prefetcher = TLBFreePrefetcher(degree=8, latency = 1)
+    #prefetcher = StridePrefetcher(degree=8, latency = 1)
+class L1ICache(BaseCache):
+    assoc = 2
+    hit_latency = 2
+    response_latency = 2
+    mshrs = 4
+    tgts_per_mshr = 20
+    is_top_level = True
+    prefetch_on_access = True
+class L1DCache(BaseCache):
+    assoc = 2
+    hit_latency = 2
+    response_latency = 2
+    mshrs = 4
+    tgts_per_mshr = 20
+    is_top_level = True
+    prefetch_on_access = True
+    #prefetcher = TLBFreePrefetcher(degree=8, latency = 1)
+    prefetcher = StridePrefetcher(degree=8, latency = 1)
 
 class L2Cache(BaseCache):
     assoc = 8
@@ -61,6 +83,9 @@ class L2Cache(BaseCache):
     mshrs = 20
     tgts_per_mshr = 12
     write_buffers = 8
+    prefetch_on_access = True
+    # Simple stride prefetcher
+    # prefetcher = StridePrefetcher(degree=8, latency = 1)
 
 class IOCache(BaseCache):
     assoc = 8

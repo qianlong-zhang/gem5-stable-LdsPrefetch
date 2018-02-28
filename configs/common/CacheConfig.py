@@ -1,6 +1,6 @@
 # Copyright (c) 2012-2013, 2015 ARM Limited
 # All rights reserved
-# 
+#
 # The license below extends only to copyright in the software and shall
 # not be construed as granting a license to any other intellectual
 # property including but not limited to intellectual property relating
@@ -9,7 +9,7 @@
 # terms below provided that you ensure that this notice is replicated
 # unmodified and in its entirety in all distributions of the software,
 # modified or unmodified, in source code or in binary form.
-# 
+#
 # Copyright (c) 2010 Advanced Micro Devices, Inc.
 # All rights reserved.
 #
@@ -64,7 +64,7 @@ def config_cache(options, system):
             O3_ARM_v7a_DCache, O3_ARM_v7a_ICache, O3_ARM_v7aL2
     else:
         dcache_class, icache_class, l2_cache_class = \
-            L1Cache, L1Cache, L2Cache
+            L1ICache, L1DCache, L2Cache
 
     # Set the cache line size of the system
     system.cache_line_size = options.cacheline_size

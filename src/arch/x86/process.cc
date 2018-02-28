@@ -363,6 +363,7 @@ X86_64LiveProcess::initState()
             //Set up the registers that describe the operating mode.
             CR0 cr0 = 0;
             cr0.pg = 1; // Turn on paging.
+            //cr0.pg = 0; // Turn off paging.
             cr0.cd = 0; // Don't disable caching.
             cr0.nw = 0; // This is bit is defined to be ignored.
             cr0.am = 1; // No alignment checking
@@ -586,6 +587,7 @@ X86_64LiveProcess::initState()
             //Set up the registers that describe the operating mode.
             CR0 cr0 = 0;
             cr0.pg = 1; // Turn on paging.
+            //cr0.pg = 0; // Turn off paging.
             cr0.cd = 0; // Don't disable caching.
             cr0.nw = 0; // This is bit is defined to be ignored.
             cr0.am = 0; // No alignment checking
@@ -612,7 +614,7 @@ I386LiveProcess::initState()
 
     argsInit(sizeof(uint32_t), PageBytes);
 
-    /* 
+    /*
      * Set up a GDT for this process. The whole GDT wouldn't really be for
      * this process, but the only parts we care about are.
      */
@@ -706,6 +708,7 @@ I386LiveProcess::initState()
         //Set up the registers that describe the operating mode.
         CR0 cr0 = 0;
         cr0.pg = 1; // Turn on paging.
+        //cr0.pg = 0; // Turn off paging.
         cr0.cd = 0; // Don't disable caching.
         cr0.nw = 0; // This is bit is defined to be ignored.
         cr0.am = 0; // No alignment checking

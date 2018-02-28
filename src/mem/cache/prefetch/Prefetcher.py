@@ -90,3 +90,22 @@ class TaggedPrefetcher(QueuedPrefetcher):
     cxx_header = "mem/cache/prefetch/tagged.hh"
 
     degree = Param.Int(2, "Number of prefetches to generate")
+
+class TLBFreePrefetcher(QueuedPrefetcher):
+    type = 'TLBFreePrefetcher'
+    cxx_class = 'TLBFreePrefetcher'
+    cxx_header = "mem/cache/prefetch/tlbfree.hh"
+    degree = Param.Int(1, "Number of prefetches to generate")
+
+    only_count_lds = Param.Bool(0,"if this set 1, tlbfree prefetcher is used to ONLY count pointer_loads and pointer_load_misses and will NOT prefetch. If set 0, still count pointer_loads and pointer_load_misses and prefetch too")
+    #flows = Param.Int(16,"")
+    num_flattern_prefetches = Param.Int(1, "should be <= num_prefetches, num_prefetches-num_flattern_prefetches = num_dep_prefetches")
+    stop_at_page_boundary = Param.Bool(1, "")
+    #flows_per_core = Param.Bool(0, "")
+    potential_producer_window_size = Param.Int(128, "for tlbfree data structre")
+    correlation_table_size = Param.Int(256, "")
+    correlation_table_dep_size = Param.Int(4, "used to set dependency depth in ct->DepList")
+    #prefetch_request_queue_size = Param.Int(32, "")
+    #prefetch_buffer_size = Param.Int(32, "32 entry 1k fully associative, 4 read/request ports, 1cycle")
+    #prefetch_on_prefetch_hit = Param.Bool(1, "")
+
