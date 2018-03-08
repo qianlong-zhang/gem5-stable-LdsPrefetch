@@ -2203,14 +2203,13 @@ Cache::CpuSidePort::recvPrefetch(PacketPtr pkt)
 {
     // functional request
     //cache->prefetcher(pkt, true);
-    //Tick next_pf_time = MaxTick;
     if (cache->prefetcher)
     {
         DPRINTF(Cache, "zql: %s @ %d can work!\n", __func__, __LINE__);
         //pkt->req->getTraceData()->dump();
-        // Don't notify on SWPrefetch
-        if (!pkt->cmd.isSWPrefetch())
-            next_pf_time = cache->prefetcher->notify(pkt);
+        //Tick next_pf_time = MaxTick;
+        //next_pf_time = cache->prefetcher->notify(pkt);
+        cache->prefetcher->notify(pkt);
     }
 }
 

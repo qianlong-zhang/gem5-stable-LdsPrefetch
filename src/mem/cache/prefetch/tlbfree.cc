@@ -121,6 +121,10 @@ void
 TLBFreePrefetcher::calculatePrefetch(const PacketPtr &pkt,
         std::vector<Addr> &addresses)
 {
+
+    DPRINTF(HWPrefetch, "In func %s !\n", __func__);
+    pkt->req->getTraceData()->dump();
+
     if(pkt->req->isSplited() && !pkt->req->isFirstSplited())
     {
         // we do not handle second splited_req
