@@ -108,7 +108,7 @@ StridePrefetcher::calculatePrefetch(const PacketPtr &pkt,
     // Get required packet info
     Addr pkt_addr = pkt->getAddr();
     Addr pc = pkt->req->getPC();
-    DPRINTF(HWPrefetch, "PC is 0x%lx, addr is 0x%lx", pc, pkt_addr);
+    DPRINTF(HWPrefetch, "PC is 0x%lx, addr is 0x%lx, data size is %d, isRead?:%d\n", pc, pkt_addr, pkt->getSize(), pkt->isRead());
     bool is_secure = pkt->isSecure();
     MasterID master_id = useMasterId ? pkt->req->masterId() : 0;
 
@@ -132,7 +132,7 @@ StridePrefetcher::calculatePrefetch(const PacketPtr &pkt,
                 entry->stride = new_stride;
         }
 
-        DPRINTF(HWPrefetch, "Hit: PC %x pkt_addr %x (%s) stride %d (%s), "
+        DPRINTF(HWPrefetch, "Hit: PC 0x%lx pkt_addr 0x%lx (%s) stride %d (%s), "
                 "conf %d\n", pc, pkt_addr, is_secure ? "s" : "ns", new_stride,
                 stride_match ? "match" : "change",
                 entry->confidence);

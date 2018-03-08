@@ -882,6 +882,7 @@ BaseDynInst<Impl>::readMem(Addr addr, uint8_t *data,
     } else {
         req = new Request(asid, addr, size, flags, masterId(), this->pc.instAddr(),
                           thread->contextId(), threadNumber);
+        req->setStaticInst(this->staticInst);
 
         req->taskId(cpu->taskId());
 
@@ -945,6 +946,7 @@ BaseDynInst<Impl>::writeMem(uint8_t *data, unsigned size,
     } else {
         req = new Request(asid, addr, size, flags, masterId(), this->pc.instAddr(),
                           thread->contextId(), threadNumber);
+        //req->setStaticInst(this->staticInst);
 
         req->taskId(cpu->taskId());
 

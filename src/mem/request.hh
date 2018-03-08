@@ -59,6 +59,10 @@
 #include "base/types.hh"
 #include "sim/core.hh"
 
+//#include "cpu/o3/impl.hh"
+#include "cpu/static_inst.hh"
+#include "cpu/static_inst_fwd.hh"
+#include "sim/insttracer.hh"
 /**
  * Special TaskIds that are used for per-context-switch stats dumps
  * and Cache Occupancy. Having too many tasks seems to be a problem
@@ -221,6 +225,7 @@ class Request
         assert(size >= 0);
         _paddr = paddr;
         _size = size;
+        size_before_splited = _size;
         _time = time;
         _masterId = mid;
         _flags.clear(~STICKY_FLAGS);
@@ -287,6 +292,20 @@ class Request
     /** program counter of initiating access; for tracing/debugging */
     Addr _pc;
 
+    /** zql: The staticinst of the instruction */
+    StaticInstPtr static_inst;
+    /** zql: traceData to tlbfree prefetcher*/
+    Trace::InstRecord *traceData;
+    /** zql: load data  */
+    uint8_t *memData;
+    /** zql: is this a slpited Request? */
+    bool splited_req;
+    /** zql: if this is splited, if this is the first req? or is the second */
+    bool first_splited_req;
+    /** zql: if is first splited, the original size is? */
+    unsigned size_before_splited;
+
+
   public:
 
     /**
@@ -299,7 +318,14 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _threadId(0), _pc(0),
           translateDelta(0), accessDelta(0), depth(0)
-    {}
+    {
+        static_inst=nullptr;
+        traceData=nullptr;
+        memData = nullptr;
+        splited_req = 0;
+        first_splited_req = 0;
+        size_before_splited = _size;
+    }
 
     /**
      * Constructor for physical (e.g. device) requests.  Initializes
@@ -313,6 +339,12 @@ class Request
           translateDelta(0), accessDelta(0), depth(0)
     {
         setPhys(paddr, size, flags, mid, curTick());
+        static_inst=nullptr;
+        traceData=nullptr;
+        memData = nullptr;
+        splited_req = 0;
+        first_splited_req = 0;
+        size_before_splited = _size;
     }
 
     Request(Addr paddr, unsigned size, Flags flags, MasterID mid, Tick time)
@@ -322,6 +354,12 @@ class Request
           translateDelta(0), accessDelta(0), depth(0)
     {
         setPhys(paddr, size, flags, mid, time);
+        static_inst=nullptr;
+        traceData=nullptr;
+        memData = nullptr;
+        splited_req = 0;
+        first_splited_req = 0;
+        size_before_splited = _size;
     }
 
     Request(Addr paddr, unsigned size, Flags flags, MasterID mid, Tick time,
@@ -334,6 +372,12 @@ class Request
         setPhys(paddr, size, flags, mid, time);
         privateFlags.set(VALID_PC);
         _pc = pc;
+        static_inst=nullptr;
+        traceData=nullptr;
+        memData = nullptr;
+        splited_req = 0;
+        first_splited_req = 0;
+        size_before_splited = _size;
     }
 
     Request(int asid, Addr vaddr, unsigned size, Flags flags, MasterID mid,
@@ -345,6 +389,12 @@ class Request
     {
         setVirt(asid, vaddr, size, flags, mid, pc);
         setThreadContext(cid, tid);
+        static_inst=nullptr;
+        traceData=nullptr;
+        memData = nullptr;
+        splited_req = 0;
+        first_splited_req = 0;
+        size_before_splited = _size;
     }
 
     ~Request() {}
@@ -371,6 +421,7 @@ class Request
         _asid = asid;
         _vaddr = vaddr;
         _size = size;
+        size_before_splited = _size;
         _masterId = mid;
         _pc = pc;
         _time = curTick();
@@ -412,6 +463,14 @@ class Request
         req1->_size = split_addr - _vaddr;
         req2->_vaddr = split_addr;
         req2->_size = _size - req1->_size;
+
+        req1->splited_req = 1;
+        req1->first_splited_req = 1;
+        req1->size_before_splited = _size;
+
+        req2->splited_req = 1;
+        req2->first_splited_req = 0;
+        req2->size_before_splited = 0;
     }
 
     /**
@@ -428,6 +487,12 @@ class Request
     {
         assert(privateFlags.isSet(VALID_PADDR));
         return _paddr;
+    }
+
+    Trace::InstRecord *
+    getTraceData()
+    {
+        return traceData;
     }
 
     /**
@@ -595,6 +660,35 @@ class Request
     {
         privateFlags.set(VALID_PC);
         _pc = pc;
+    }
+    void setStaticInst(StaticInstPtr p)
+    {
+        static_inst=p;
+    }
+    void setMemData(uint8_t *data)
+    {
+        memData = data;
+    }
+    void setTraceData(Trace::InstRecord *trace)
+    {
+        traceData=trace;
+    }
+    StaticInstPtr getStaticInst()
+    {
+        return static_inst;
+    }
+    bool isSplited()
+    {
+        return splited_req;
+    }
+    bool isFirstSplited()
+    {
+        return first_splited_req;
+    }
+    unsigned getSizeBeforeSplited() const
+    {
+        assert(privateFlags.isSet(VALID_SIZE));
+        return size_before_splited;
     }
 
     bool

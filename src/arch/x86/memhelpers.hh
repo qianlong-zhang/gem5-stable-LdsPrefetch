@@ -43,6 +43,8 @@ Fault
 readMemTiming(XC *xc, Trace::InstRecord *traceData, Addr addr,
         uint64_t &mem, unsigned dataSize, unsigned flags)
 {
+
+    //printf("In func %s, addr is 0x%lx, data size is %d\n", __func__, addr, dataSize);
     return xc->readMem(addr, (uint8_t *)&mem, dataSize, flags);
 }
 

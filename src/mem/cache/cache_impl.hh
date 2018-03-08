@@ -447,6 +447,7 @@ Cache::promoteWholeLineWrites(PacketPtr pkt)
 bool
 Cache::recvTimingReq(PacketPtr pkt)
 {
+    DPRINTF(Cache, "In file %s, In func %s, PC is 0x%lx,addr is 0x%lx, pkt->size is %d\n",__FILE__, __func__,pkt->req->getPC(), pkt->getAddr(), pkt->getSize());
     DPRINTF(CacheTags, "%s tags: %s\n", __func__, tags->print());
 //@todo Add back in MemDebug Calls
 //    MemDebug::cacheAccess(pkt);
@@ -557,7 +558,7 @@ Cache::recvTimingReq(PacketPtr pkt)
     pkt->headerDelay = pkt->payloadDelay = 0;
 
     // track time of availability of next prefetch, if any
-    Tick next_pf_time = MaxTick;
+    //Tick next_pf_time = MaxTick;
 
     bool needsResponse = pkt->needsResponse();
 
@@ -569,14 +570,14 @@ Cache::recvTimingReq(PacketPtr pkt)
 
         // hit (for all other request types)
 
-        if (prefetcher && (prefetchOnAccess || (blk && blk->wasPrefetched()))) {
-            if (blk)
-                blk->status &= ~BlkHWPrefetched;
+        //if (prefetcher && (prefetchOnAccess || (blk && blk->wasPrefetched()))) {
+        //    if (blk)
+        //        blk->status &= ~BlkHWPrefetched;
 
-            // Don't notify on SWPrefetch
-            if (!pkt->cmd.isSWPrefetch())
-                next_pf_time = prefetcher->notify(pkt);
-        }
+        //    // Don't notify on SWPrefetch
+        //    if (!pkt->cmd.isSWPrefetch())
+        //        next_pf_time = prefetcher->notify(pkt);
+        //}
 
         if (needsResponse) {
             pkt->makeTimingResponse();
@@ -692,11 +693,11 @@ Cache::recvTimingReq(PacketPtr pkt)
                 // cache line.  So, even when not satisfied, tehre is an MSHR
                 // already allocated for this, we need to let the prefetcher know
                 // about the request
-                if (prefetcher) {
-                    // Don't notify on SWPrefetch
-                    if (!pkt->cmd.isSWPrefetch())
-                        next_pf_time = prefetcher->notify(pkt);
-                }
+                //if (prefetcher) {
+                //    // Don't notify on SWPrefetch
+                //    if (!pkt->cmd.isSWPrefetch())
+                //        next_pf_time = prefetcher->notify(pkt);
+                //}
             }
         } else {
             // no MSHR
@@ -749,17 +750,17 @@ Cache::recvTimingReq(PacketPtr pkt)
                 allocateMissBuffer(pkt, forward_time, true);
             }
 
-            if (prefetcher) {
-                // Don't notify on SWPrefetch
-                if (!pkt->cmd.isSWPrefetch())
-                    next_pf_time = prefetcher->notify(pkt);
-            }
+            //if (prefetcher) {
+            //    // Don't notify on SWPrefetch
+            //    if (!pkt->cmd.isSWPrefetch())
+            //        next_pf_time = prefetcher->notify(pkt);
+            //}
         }
     }
-    // Here we condiser just forward_time.
-    if (next_pf_time != MaxTick)
-        requestMemSideBus(Request_PF, std::max(clockEdge(forwardLatency),
-                                                next_pf_time));
+    //// Here we condiser just forward_time.
+    //if (next_pf_time != MaxTick)
+    //    requestMemSideBus(Request_PF, std::max(clockEdge(forwardLatency),
+    //                                            next_pf_time));
 
     return true;
 }
@@ -1129,6 +1130,16 @@ Cache::recvTimingResp(PacketPtr pkt)
 
         blk = handleFill(pkt, blk, writebacks);
         assert(blk != NULL);
+        Tick next_pf_time = MaxTick;
+        if (prefetcher) {
+            // Don't notify on SWPrefetch
+            if (!pkt->cmd.isSWPrefetch())
+                next_pf_time = prefetcher->notify(pkt);
+        }
+        // Here we condiser just forward_time.
+        if (next_pf_time != MaxTick)
+            requestMemSideBus(Request_PF, std::max(clockEdge(forwardLatency),
+                        next_pf_time));
     }
 
     // First offset for critical word first calculations
@@ -1321,6 +1332,59 @@ Cache::recvTimingResp(PacketPtr pkt)
 
     DPRINTF(Cache, "Leaving %s with %s for addr %#llx\n", __func__,
             pkt->cmdString(), pkt->getAddr());
+
+#if 0
+    LSQSenderState *state = dynamic_cast<LSQSenderState *>(pkt->senderState);
+    // If this is a split access, wait until all packets are received.
+    if (TheISA::HasUnalignedMemAcc && !state->outstanding) {
+        //if (!inst->isSquashed()) {
+            if (!state->noWB) {
+                if (!TheISA::HasUnalignedMemAcc || !state->isSplit ||
+                        !state->isLoad)
+                {
+                    //writeback(inst, pkt);
+                    switch (pkt->getSize()) {
+                        case 1:
+                            DPRINTF(Cache, "zql: tgt_pkt->setData is 0x%lx\n", pkt->get<uint8_t>());
+                            break;
+                        case 2:
+                            DPRINTF(Cache, "zql: tgt_pkt->setData is 0x%lx\n", pkt->get<uint16_t>());
+                            break;
+                        case 4:
+                            DPRINTF(Cache, "zql: tgt_pkt->setData is 0x%lx\n", pkt->get<uint32_t>());
+                            break;
+                        case 8:
+                            DPRINTF(Cache, "zql: tgt_pkt->setData is 0x%lx\n", pkt->get<uint64_t>());
+                            break;
+                        default:
+                            panic("Unhandled size in getMem.\n");
+                    }
+                }
+                else
+                {
+                    //writeback(inst, state->mainPkt);
+                    switch (state->mainPkt->getSize()) {
+                        case 1:
+                            DPRINTF(Cache, "zql: state->mainPkt is 0x%lx\n", state->mainPkt->get<uint8_t>());
+                            break;
+                        case 2:
+                            DPRINTF(Cache, "zql: state->mainPkt is 0x%lx\n", state->mainPkt->get<uint16_t>());
+                            break;
+                        case 4:
+                            DPRINTF(Cache, "zql: state->mainPkt is 0x%lx\n", state->mainPkt->get<uint32_t>());
+                            break;
+                        case 8:
+                            DPRINTF(Cache, "zql: state->mainPkt is 0x%lx\n", state->mainPkt->get<uint64_t>());
+                            break;
+                        default:
+                            panic("Unhandled size in getMem.\n");
+                    }
+                }
+            }
+        }
+    }
+#endif
+    DPRINTF(Cache, "zql: after recvTimingResp, pkt datasize is %d, req datasize is %d\n", pkt->getSize(), pkt->req->getSize());
     delete pkt;
 }
 
@@ -2098,6 +2162,7 @@ Cache::CpuSidePort::recvTimingReq(PacketPtr pkt)
     assert(!cache->system->bypassCaches());
 
     bool success = false;
+    DPRINTF(Cache, "In file %s, In func %s, PC is 0x%lx,addr is 0x%lx, pkt->size is %d\n",__FILE__, __func__,pkt->req->getPC(), pkt->getAddr(), pkt->getSize());
 
     // always let inhibited requests through, even if blocked,
     // ultimately we should check if this is an express snoop, but at
@@ -2132,6 +2197,21 @@ Cache::CpuSidePort::recvFunctional(PacketPtr pkt)
 {
     // functional request
     cache->functionalAccess(pkt, true);
+}
+void
+Cache::CpuSidePort::recvPrefetch(PacketPtr pkt)
+{
+    // functional request
+    //cache->prefetcher(pkt, true);
+    //Tick next_pf_time = MaxTick;
+    if (cache->prefetcher)
+    {
+        DPRINTF(Cache, "zql: %s @ %d can work!\n", __func__, __LINE__);
+        //pkt->req->getTraceData()->dump();
+        // Don't notify on SWPrefetch
+        if (!pkt->cmd.isSWPrefetch())
+            next_pf_time = cache->prefetcher->notify(pkt);
+    }
 }
 
 Cache::

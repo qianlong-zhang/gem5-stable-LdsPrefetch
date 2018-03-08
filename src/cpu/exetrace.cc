@@ -106,6 +106,7 @@ Trace::ExeTracerRecord::traceInst(const StaticInstPtr &inst, bool ran)
     outs << inst->disassemble(cur_pc, debugSymbolTable);
 
     if (ran) {
+        outs << "PC: "<<hex<<"0x"<<cur_pc;
         outs << " : ";
 
         if (Debug::ExecOpClass) {

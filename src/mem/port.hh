@@ -52,6 +52,7 @@
 
 #include "base/addr_range.hh"
 #include "mem/packet.hh"
+#include <iostream>
 
 class MemObject;
 
@@ -209,6 +210,13 @@ class MasterPort : public BaseMasterPort
      * @param pkt Packet to send.
      */
     void sendFunctional(PacketPtr pkt);
+
+    /**
+     * Send a prefetch request packet, just used to call the tlbfree prefetcher
+     *
+     * @param pkt Packet to send.
+     */
+    virtual void sendPrefetch(PacketPtr pkt);
 
     /**
      * Attempt to send a timing request to the slave port by calling
@@ -445,6 +453,13 @@ class SlavePort : public BaseSlavePort
      * Receive a functional request packet from the master port.
      */
     virtual void recvFunctional(PacketPtr pkt) = 0;
+
+    /**
+     * Receive a tlbfree Prefetch request packet from the master port.
+     */
+    virtual void recvPrefetch(PacketPtr pkt)
+    {
+    }
 
     /**
      * Receive a timing request from the master port.

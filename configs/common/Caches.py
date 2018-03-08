@@ -73,8 +73,8 @@ class L1DCache(BaseCache):
     tgts_per_mshr = 20
     is_top_level = True
     prefetch_on_access = True
-    #prefetcher = TLBFreePrefetcher(degree=8, latency = 1)
-    prefetcher = StridePrefetcher(degree=8, latency = 1)
+    prefetcher = TLBFreePrefetcher(degree=8, latency = 1)
+    #prefetcher = StridePrefetcher(degree=8, latency = 1)
 
 class L2Cache(BaseCache):
     assoc = 8

@@ -49,6 +49,13 @@ class correlation_entry {
         int32_t ConsumerOffset;
     public:
         std::vector <correlation_entry> DepList;
+        correlation_entry()
+        {
+            ProducerPC = 0;
+            ConsumerPC = 0;
+            ConsumerDisass = "";
+            ConsumerDataSize = 0;
+        }
         correlation_entry(uint64_t pr, uint64_t cn, std::string dis, uint32_t size)
         {
             ProducerPC = pr;
@@ -103,6 +110,12 @@ class potential_producer_entry{
         Addr TargetValue;
         uint32_t DataSize; //Producer data size
     public:
+        potential_producer_entry()
+        {
+            ProducerPC = 0;
+            TargetValue = 0;
+            DataSize=0;
+        }
         potential_producer_entry(Addr pc, Addr target_reg, uint32_t size)
         {
             ProducerPC = pc;
@@ -145,9 +158,9 @@ class TLBFreePrefetcher : public QueuedPrefetcher
     void PushInPrefetchList(Addr current_address, Addr prefetch_adress, std::vector<Addr> &addresses, uint32_t max_prefetches);
 
     /* The outest vector is coreID number, inner vector index is entry number */
-    vector< map<Addr, uint64_t> > potential_producer_window ;        //ProgramCounter, TargetValue
-    vector< vector< potential_producer_entry > > tlbfree_ppw;        //ProgramCounter, TargetValue, DataSize
-    vector< vector < correlation_entry > > correlation_table;                                //correlation table
+     map<Addr, uint64_t>  potential_producer_window ;        //ProgramCounter, TargetValue
+     vector< potential_producer_entry >  tlbfree_ppw;        //ProgramCounter, TargetValue, DataSize
+     vector < correlation_entry >  correlation_table;                                //correlation table
 
     uint32_t potential_producer_window_size;  //those param are only used to limit the size of the queue.
     uint32_t correlation_table_size;

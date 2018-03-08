@@ -1,13 +1,7 @@
 #!/bin/bash
 export M5_PATH=/home/zhangqianlong/Icache-miss/backup/gem5/fs-images
-#Nodebug
 #./build/X86/gem5.opt  configs/example/fs.py --mem-size=2048MB --disk-image=BigDataBench-gem5-sort.img --kernel=x86_64-vmlinux-2.6.22.9  
-#Atomic:
-#./build/X86/gem5.opt --debug-flags=TLB,PageTableWalker --debug-file=PageTableWalker.txt configs/example/fs.py --ruby --mem-size=2048MB --num-cpus=4 --disk-image=linux-x86.img --kernel=x86_64-vmlinux-2.6.22.9.smp
-#Timinggdb
-#gdb --args ./build/X86/gem5.opt --debug-flags=RubyPort,RubyQueue,ProtocolTrace,RubyGenerated,TLB,PageTableWalker  --debug-file=PageTableWalker.txt configs/example/fs.py --cpu-type=timing --ruby  --num-cpus=4 --disk-image=linux-x86.img --kernel=x86_64-vmlinux-2.6.22.9.smp
-#Timing
-./build/X86/gem5.opt --debug-flags=RubyPort,RubyQueue,ProtocolTrace,RubyGenerated,TLB,PageTableWalker --debug-file=PageTableWalker.txt configs/example/fs.py --cpu-type=timing --ruby  --num-cpus=4 --disk-image=linux-x86.img --kernel=x86_64-vmlinux-2.6.22.9.smp
+./build/X86/gem5.debug  configs/example/fs.py --mem-size=2048MB --disk-image=linux-x86.img --kernel=x86_64-vmlinux-2.6.22.9  
 
 
 #./build/X86/gem5.opt configs/example/fs.py --disk-image=BigDataBench-gem5-sort.img   --kernel=/home/zhangqianlong/Icache-miss/Qemu_icache/vmlinux-new

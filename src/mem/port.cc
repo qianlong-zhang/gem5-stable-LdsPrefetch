@@ -174,6 +174,12 @@ MasterPort::sendFunctional(PacketPtr pkt)
     assert(pkt->isRequest());
     return _slavePort->recvFunctional(pkt);
 }
+void
+MasterPort::sendPrefetch(PacketPtr pkt)
+{
+    assert(pkt->isRequest());
+    return _slavePort->recvPrefetch(pkt);
+}
 
 bool
 MasterPort::sendTimingReq(PacketPtr pkt)

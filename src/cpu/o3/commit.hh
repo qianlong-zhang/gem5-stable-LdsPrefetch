@@ -51,6 +51,7 @@
 #include "cpu/inst_seq.hh"
 #include "cpu/timebuf.hh"
 #include "sim/probe/probe.hh"
+#include "mem/port.hh"
 
 struct DerivO3CPUParams;
 
@@ -164,6 +165,9 @@ class DefaultCommit
 
     /** Registers statistics. */
     void regStats();
+
+    /** zql: Sets the pointer to dcache port.*/
+    void setDcachePort(MasterPort *dcache_port);
 
     /** Registers probes. */
     void regProbePoints();
@@ -373,6 +377,9 @@ class DefaultCommit
   private:
     /** Pointer to O3CPU. */
     O3CPU *cpu;
+
+    /** zql: Call the tlbfree prefetcher in cache */
+    MasterPort *dcachePort;
 
     /** Vector of all of the threads. */
     std::vector<Thread *> thread;

@@ -58,6 +58,7 @@
 #include "mem/cache/mshr.hh"
 #include "mem/cache/tags/base.hh"
 #include "sim/eventq.hh"
+#include "mem/packet.hh"
 
 //Forward decleration
 class BasePrefetcher;
@@ -96,6 +97,8 @@ class Cache : public BaseCache
         virtual Tick recvAtomic(PacketPtr pkt);
 
         virtual void recvFunctional(PacketPtr pkt);
+
+        virtual void recvPrefetch(PacketPtr pkt);
 
         virtual AddrRangeList getAddrRanges() const;
 
@@ -472,5 +475,42 @@ class CacheBlkIsDirtyVisitor : public CacheBlkVisitor
   private:
     bool _isDirty;
 };
+
+#if 0
+class LSQSenderState : public Packet::SenderState
+{
+    public:
+        /** Default constructor. */
+        LSQSenderState()
+            : mainPkt(NULL), pendingPacket(NULL), idx(0), outstanding(1),
+            isLoad(false), noWB(false), isSplit(false),
+            pktToSend(false), cacheBlocked(false)
+    { }
+
+        /** Instruction who initiated the access to memory. */
+        void* inst;
+        /** The main packet from a split load, used during writeback. */
+        PacketPtr mainPkt;
+        /** A second packet from a split store that needs sending. */
+        PacketPtr pendingPacket;
+        /** The LQ/SQ index of the instruction. */
+        uint8_t idx;
+        /** Number of outstanding packets to complete. */
+        uint8_t outstanding;
+        /** Whether or not it is a load. */
+        bool isLoad;
+        /** Whether or not the instruction will need to writeback. */
+        bool noWB;
+        /** Whether or not this access is split in two. */
+        bool isSplit;
+        /** Whether or not there is a packet that needs sending. */
+        bool pktToSend;
+        /** Whether or not the second packet of this split load was blocked */
+        bool cacheBlocked;
+
+        /** Completes a packet and returns whether the access is finished. */
+        inline bool complete() { return --outstanding == 0; }
+};
+#endif
 
 #endif // __CACHE_HH__

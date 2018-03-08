@@ -156,8 +156,13 @@ DefaultCommit<Impl>::DefaultCommit(O3CPU *_cpu, DerivO3CPUParams *params)
         pc[tid].set(0);
         lastCommitedSeqNum[tid] = 0;
         squashAfterInst[tid] = NULL;
+
     }
     interrupt = NoFault;
+
+    /** zql: Initialize setDcachePort */
+    setDcachePort(&cpu->getDataPort());
+
 }
 
 template <class Impl>
@@ -285,6 +290,12 @@ DefaultCommit<Impl>::regStats()
         .name(name() + ".bw_lim_events")
         .desc("number cycles where commit BW limit reached")
         ;
+}
+template <class Impl>
+void
+DefaultCommit<Impl>::setDcachePort(MasterPort * dcache_port)
+{
+    dcachePort = dcache_port;
 }
 
 template <class Impl>
@@ -1186,6 +1197,18 @@ DefaultCommit<Impl>::commitHead(DynInstPtr &head_inst, unsigned inst_num)
     if (!head_inst->isStore() && inst_fault == NoFault) {
         head_inst->setCompleted();
     }
+
+    /* zql: for tlb prefetcher in cache*/
+    //Request *req = new Request(head_inst->asid, head_inst->effAddr, head_inst->effSize, 0, head_inst->masterId(), this->pc.instAddr(),
+    //thread[tid]->contextId(), head_inst->threadNumber);
+    Request *req = new Request();
+    //req->setStaticInst(head_inst->staticInst);
+    //req->setMemData(head_inst->memData);
+    req->setTraceData(head_inst->traceData);
+    PacketPtr prefetch_pkt =  new Packet(req, MemCmd::HardPFReq);
+
+    DPRINTF(Commit, "zql: Sending prefetch!\n");
+    dcachePort->sendPrefetch(prefetch_pkt);
 
     if (inst_fault != NoFault) {
         DPRINTF(Commit, "Inst [sn:%lli] PC %s has a fault\n",

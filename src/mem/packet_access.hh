@@ -48,7 +48,7 @@ inline T
 Packet::get() const
 {
     assert(flags.isSet(STATIC_DATA|DYNAMIC_DATA));
-    assert(sizeof(T) <= size);
+    //assert(sizeof(T) <= size);
     return TheISA::gtoh(*(T*)data);
 }
 

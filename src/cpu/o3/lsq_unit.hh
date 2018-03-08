@@ -554,9 +554,9 @@ LSQUnit<Impl>::read(Request *req, Request *sreqLow, Request *sreqHigh,
                     uint8_t *data, int load_idx)
 {
     DynInstPtr load_inst = loadQueue[load_idx];
-
     assert(load_inst);
 
+    DPRINTF(LSQUnit, "In file %s, In func %s line %d, PC is 0x%lx, pkt->size is %d\n",__FILE__, __func__, __LINE__, req->getPC(), req->getSize());
     assert(!load_inst->isExecuted());
 
     // Make sure this isn't a strictly ordered load
@@ -808,6 +808,7 @@ LSQUnit<Impl>::read(Request *req, Request *sreqLow, Request *sreqHigh,
     }
 
     bool successful_load = true;
+    DPRINTF(LSQUnit, "In file %s, In func %s line %d, PC is 0x%lx, pkt->size is %d\n",__FILE__, __func__, __LINE__, fst_data_pkt->req->getPC(), fst_data_pkt->getSize());
     if (!dcachePort->sendTimingReq(fst_data_pkt)) {
         successful_load = false;
     } else if (TheISA::HasUnalignedMemAcc && sreqLow) {

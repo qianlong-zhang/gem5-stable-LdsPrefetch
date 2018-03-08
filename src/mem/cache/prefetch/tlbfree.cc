@@ -42,14 +42,18 @@ const uint32_t BLKSIZE = 64;
 TLBFreePrefetcher::TLBFreePrefetcher(const TLBFreePrefetcherParams *p)
     : QueuedPrefetcher(p), degree(p->degree)
 {
-    tlbfree_ppw.resize(1);
-    correlation_table.resize(1);
+    potential_producer_window_size = p->potential_producer_window_size;
+    correlation_table_size = p->correlation_table_size;
+    correlation_table_dep_size = p->correlation_table_dep_size;
+    prefetch_request_queue_size = p->prefetch_request_queue_size;
+    stop_at_page = p->stop_at_page;
+    only_count_lds = p->only_count_lds;
 }
 
-void TLBFreePrefetcher::PushInPrefetchList(Addr current_address, Addr prefetch_address, std::vector<Addr> &prefetch_list, uint32_t max_prefetches)
+void TLBFreePrefetcher::PushInPrefetchList(Addr current_va, Addr prefetch_address, std::vector<Addr> &prefetch_list, uint32_t max_prefetches)
 {
     bool address_found =false;
-    if ((!stop_at_page || ((prefetch_address & PAGE_MASK) == (current_address & PAGE_MASK))) && (prefetch_list).size() < max_prefetches)
+    if ((!stop_at_page || ((prefetch_address & PAGE_MASK) == (current_va & PAGE_MASK))) && (prefetch_list).size() < max_prefetches)
     {
         if (prefetch_address > 0x400000 && !only_count_lds && prefetch_address<0x800000000000)
         {
@@ -57,7 +61,7 @@ void TLBFreePrefetcher::PushInPrefetchList(Addr current_address, Addr prefetch_a
             // not only the cache block address, cause we need the actual data to determine the next address
             //if (prefetch_address % BLKSIZE)
             //    prefetch_address = prefetch_address-(prefetch_address % BLKSIZE);
-            if (prefetch_address!=current_address)
+            if (prefetch_address!=current_va)
             {
                 for(std::vector<Addr>::iterator it = (prefetch_list).begin(); it != (prefetch_list).end(); ++it)
                 {
@@ -69,8 +73,8 @@ void TLBFreePrefetcher::PushInPrefetchList(Addr current_address, Addr prefetch_a
                 if (!address_found)
                 {
                     (prefetch_list).push_back(prefetch_address);
-                    DPRINTF(HWPrefetch, "Pushing back  current_address :0x%lx address push_back is 0x%lx After align:0x%lx\n",\
-                            current_address ,\
+                    DPRINTF(HWPrefetch, "Pushing back  current_va :0x%lx address push_back is 0x%lx After align:0x%lx\n",\
+                            current_va ,\
                             prefetch_address,\
                             prefetch_address-(prefetch_address % BLKSIZE));
                 }
@@ -101,12 +105,12 @@ int32_t TLBFreePrefetcher::DisassGetOffset(std::string inst_disass)
                 temp_index=index3;
 
             std::string sub_str = inst_temp.substr(temp_index+1, index1 - temp_index-1);
+            DPRINTF(HWPrefetch, "sub_str: %s\n", (sub_str));
             stringstream offset(sub_str);
             offset>>hex>>inst_offset;
 
             if(index3!=string::npos)
                 inst_offset=-inst_offset;
-            DPRINTF(HWPrefetch, "sub_str: %s\n", (sub_str));
             DPRINTF(HWPrefetch, "inst_offset: %d\n", inst_offset);
         }
     }
@@ -117,55 +121,105 @@ void
 TLBFreePrefetcher::calculatePrefetch(const PacketPtr &pkt,
         std::vector<Addr> &addresses)
 {
+    if(pkt->req->isSplited() && !pkt->req->isFirstSplited())
+    {
+        // we do not handle second splited_req
+        // we only handle not splited req or splited_first_req
+        DPRINTF(HWPrefetch, "This is a second splited req,PC :0x%lx, cachedDisassembly: %s, pkt->size: %d\n", pkt->req->getPC(), (pkt->req->getStaticInst()?pkt->req->getStaticInst()->disassemble(pkt->req->getPC(),0):"Empty"), pkt->req->getSize());
+        return;
+    }
+    else if(pkt->req->isSplited())
+    {
+        DPRINTF(HWPrefetch, "This is a first splited req,PC :0x%lx, cachedDisassembly: %s, real pkt->size: %d, size before splited is %d\n", pkt->req->getPC(), (pkt->req->getStaticInst()?pkt->req->getStaticInst()->disassemble(pkt->req->getPC(), 0):"Empty"), pkt->req->getSize(), pkt->req->getSizeBeforeSplited());
+    }
+    else if(!pkt->req->isSplited())
+    {
+        DPRINTF(HWPrefetch, "This is NOT a splited req,PC :0x%lx, real pkt->size: %d, size before splited is %d\n", pkt->req->getPC(), pkt->req->getSize(), pkt->req->getSizeBeforeSplited());
+    }
     int32_t ppw_found=false;
 	Addr PR = 0;
     bool already_in_ppw = false;
     bool already_in_ct = false;
     bool already_in_dep_ct = false;
-    int32_t inst_offset= DisassGetOffset(pkt->cmdString());
-    Addr current_address = pkt->req->getVaddr();
-    Addr current_address_pa = pkt->req->getPaddr();
+    //Addr current_va = pkt->req->getVaddr();
+    Addr current_va = pkt->getAddr();
+    Addr current_pa = pkt->req->getPaddr();
     Addr offset = pkt->getOffset(BLKSIZE);
-    unsigned data_size = pkt->getSize();
+    unsigned data_size = pkt->req->getSizeBeforeSplited();
+    DPRINTF(HWPrefetch, "Data size is:%d \n",data_size);
     uint64_t target_reg = 0;
-    DPRINTF(HWPrefetch, "Starting in %s\n" ,__func__);
-    DPRINTF(HWPrefetch, "current_address va is 0x%lx, pa is 0x%lx, offset is 0x%lx\n" , current_address, current_address_pa, offset);
-    for(int32_t j = data_size-1; j >= 0; --j)
-    {
-        target_reg = (target_reg << 8) | reinterpret_cast<char *>(current_address_pa + offset)[j];
-    }
-    DPRINTF(HWPrefetch,  "target_reg is 0x%lx\n", target_reg);
+    char * data_buf = (char*)malloc(BLKSIZE);
+    memset(data_buf,0,BLKSIZE);
+
+
+
 
     //pkt=0 means memory access is send by doPrefetch(), so we not prefetch for them again
     //dir=0 means read
-    if (pkt!=0  && pkt->isRead())
-    //if (pkt!=0 && target_reg != 0 )
+    if (pkt!=0  && pkt->isRead() && pkt->req->getStaticInst() && (!pkt->req->isSplited() || pkt->req->isFirstSplited()))
     {
-        Addr CN = pkt->req->getPC();
-        DPRINTF(HWPrefetch,  "PC is 0x%lx\n", CN);
+        //DPRINTF(HWPrefetch, "This is NOT a splited req,PC :0x%lx, cachedDisassembly: %s, real pkt->size: %d, size before splited is %d\n", pkt->req->getPC(), pkt->req->getStaticInst()->disassemble(pkt->req->getPC(), 0), pkt->req->getSize(), pkt->req->getSizeBeforeSplited());
+        //DPRINTF(HWPrefetch, "This is NOT a splited req,PC :0x%lx, real pkt->size: %d, size before splited is %d\n", pkt->req->getPC(), pkt->req->getSize(), pkt->req->getSizeBeforeSplited());
+        {
+            std::memcpy(data_buf, pkt->getConstPtr<uint8_t>(), BLKSIZE);
+        }
+        {
+            uint64_t mem;
+            switch (data_size) {
+                case 1:
+                    mem = pkt->get<uint8_t>();
+                    break;
+                case 2:
+                    mem = pkt->get<uint16_t>();
+                    break;
+                case 4:
+                    mem = pkt->get<uint32_t>();
+                    break;
+                case 8:
+                    mem = pkt->get<uint64_t>();
+                    break;
+                default:
+                    panic("Unhandled size in getMem.\n");
+            }
+            DPRINTF(HWPrefetch, "mem is 0x%lx\n", mem);
+        }
 
-        //String inst_template = pkt->cmd.toString();
+        for(unsigned i = 0; i < BLKSIZE; ++i)
+        {
+            DPRINTF(HWPrefetch, "%02x\n", data_buf[i]);
+        }
+        DPRINTF(HWPrefetch, "\n");
+        for(unsigned i = ((current_pa%BLKSIZE)+data_size)-1;i>=current_pa%BLKSIZE; --i)
+        {
+            DPRINTF(HWPrefetch, "i = %d\n", i);
+            DPRINTF(HWPrefetch, "%02x\n", data_buf[i]);
+            target_reg = (target_reg << 8) | reinterpret_cast<char *>(data_buf)[i];
+            if (i==0)
+                break;
+        }
+        DPRINTF(HWPrefetch, "current_va va is 0x%lx, pa is 0x%lx, offset is 0x%lx\n" , current_va, current_pa, offset);
+        DPRINTF(HWPrefetch, "This inst PC is 0x%lx, cachedDisassembly is: %s, target_reg is 0x%lx\n", pkt->req->getPC(), pkt->req->getStaticInst()->disassemble(pkt->req->getPC(), 0), target_reg);
+        string dis = pkt->req->getStaticInst()->disassemble(pkt->req->getPC(), 0);
+        int32_t inst_offset= DisassGetOffset(pkt->req->getStaticInst()->disassemble(pkt->req->getPC(), 0));
+        Addr CN = pkt->req->getPC();
 
         /* The outest vector is entry number */
-        std::vector<potential_producer_entry>   &ppw = tlbfree_ppw.at(0);
+        std::vector<potential_producer_entry>   &ppw = tlbfree_ppw;
         std::vector<potential_producer_entry> temp_ppw;
-        std::vector <correlation_entry>      &ct = correlation_table.at(0);
+        std::vector <correlation_entry>      &ct = correlation_table;
         correlation_entry temp_ct(0,0,"",0);
 
         DPRINTF(HWPrefetch, "\n");
         DPRINTF(HWPrefetch, "\n");
 
-        DPRINTF(HWPrefetch, "In function: %s,  current_address is: 0x%lx\n" ,__func__, current_address);
-        DPRINTF(HWPrefetch, "After add offset: current_address is: 0x%lx\n", current_address+offset);
-        DPRINTF(HWPrefetch, "diss is: %s, PC is: 0x%lx\n", ( pkt->cmd.toString()), pkt->req->getPC());
-
-        DPRINTF(HWPrefetch, "The real base reg is: 0x%lx\n", current_address+offset-inst_offset);
+        DPRINTF(HWPrefetch, "In function: %s,  current_va is: 0x%lx\n" ,__func__, current_va);
+        //DPRINTF(HWPrefetch, "The real base reg is: 0x%lx\n", current_va+offset-inst_offset);
         DPRINTF(HWPrefetch, "STEP 1:  find producer in PPW\n");
 
-        //step 1: find producer in PPW, the base address is the whole address(current_address+offset) - inst_offset
+        //step 1: find producer in PPW, the base address is the whole address(current_va+offset) - inst_offset
         for (std::vector<potential_producer_entry>::reverse_iterator it = ppw.rbegin(); it!=ppw.rend(); it++)
         {
-            if(it->GetTargetValue() == current_address+offset-inst_offset)
+            if(it->GetTargetValue() == current_va-inst_offset)
             {
                 ppw_found=true;
                 DPRINTF(HWPrefetch, "Found in PPW\n");
@@ -185,10 +239,11 @@ TLBFreePrefetcher::calculatePrefetch(const PacketPtr &pkt,
             //if (pointer_stores &&pkt->memory_info[0].dir )
             //    (*pointer_stores)++;
 
-            temp_ct.SetCT(PR, CN, pkt->cmd.toString().c_str(), data_size);
+            temp_ct.SetCT(PR, CN, dis, data_size);
             temp_ct.SetConsumerOffset(inst_offset);
 
 #ifndef INFINITE_CT
+            DPRINTF(HWPrefetch, "ct.size is %d, correlation_table_size is %d\n", ct.size(), correlation_table_size);
            while (ct.size()>=correlation_table_size)
             {
                vector<correlation_entry>::iterator k=ct.begin();
@@ -204,8 +259,8 @@ TLBFreePrefetcher::calculatePrefetch(const PacketPtr &pkt,
                 }
             }
             if (!already_in_ct &&
-                    pkt->cmd.toString().find("push") == string::npos &&
-                    pkt->cmd.toString().find("pop") == string::npos)
+                    dis.find("PUSh") == string::npos &&
+                    dis.find("POP") == string::npos)
             {
                 ct.push_back(temp_ct);
             }
@@ -234,8 +289,8 @@ TLBFreePrefetcher::calculatePrefetch(const PacketPtr &pkt,
                             }
                         }
                         if (!already_in_dep_ct &&
-                                pkt->cmd.toString().find("push") == string::npos &&
-                                pkt->cmd.toString().find("pop") == string::npos)
+                                dis.find("PUSh") == string::npos &&
+                                dis.find("POP") == string::npos)
                         {
                             DPRINTF(HWPrefetch, "DepList pushing back: PR 0x%lx, CN 0x%lx, Diss: %s, size:%d\n", temp_ct.GetProducerPC(),temp_ct.GetConsumerPC(), (temp_ct.GetDisass()), temp_ct.GetDataSize() );
                             iter1->DepList.push_back(temp_ct);
@@ -328,23 +383,22 @@ TLBFreePrefetcher::calculatePrefetch(const PacketPtr &pkt,
         //PC as producer to get potential consumer
         DPRINTF(HWPrefetch, "STEP 4:  get the prefetch address from CT\n");
 
-        //for (uint32_t k=0; k<correlation_table_size; k++)
         for (std::vector<correlation_entry>::iterator iter=ct.begin(); iter!=ct.end(); iter++)
         {
             Addr temp_temp_target_reg=0;
             if (iter->GetProducerPC() == pkt->req->getPC())
             {
-                DPRINTF(HWPrefetch, "Pushing back PR is 0x%lx, CN is 0x%lx,current address is 0x%lx,  Prefetch address is 0x%lx\n", iter->GetProducerPC(), iter->GetConsumerPC(),current_address + offset , target_reg + iter->GetConsumerOffset());
-                PushInPrefetchList(current_address+offset, target_reg + iter->GetConsumerOffset(), addresses, num_flattern_prefetches);
+                DPRINTF(HWPrefetch, "Pushing back PR is 0x%lx, CN is 0x%lx,current address is 0x%lx,  Prefetch address is 0x%lx\n", iter->GetProducerPC(), iter->GetConsumerPC(),current_va, target_reg + iter->GetConsumerOffset());
+                PushInPrefetchList(current_va, target_reg + iter->GetConsumerOffset(), addresses, num_flattern_prefetches);
 
-                for(int32_t j = iter->GetDataSize()-1; j >= 0; --j)
-                {
-                    temp_temp_target_reg = (temp_temp_target_reg << 8) | reinterpret_cast<char *>(current_address_pa+offset)[j];
-                }
+                //for(int32_t j = iter->GetDataSize()-1; j >= 0; --j)
+                //{
+                //    temp_temp_target_reg = (temp_temp_target_reg << 8) | reinterpret_cast<char *>(current_pa+offset)[j];
+                //}
                 DPRINTF(HWPrefetch, "target_reg is 0x%lx, temp_temp_target_reg is 0x%lx,  GetDataSize() is %d\n", target_reg, temp_temp_target_reg,  iter->GetDataSize());
             }
         }
-#if 1
+#if 0
         /****************************************/
         /****************************************/
         /****************************************/
@@ -359,17 +413,17 @@ TLBFreePrefetcher::calculatePrefetch(const PacketPtr &pkt,
                 if ((iter->GetProducerPC() == pkt->req->getPC()) && (iter->DepList.size()>0))
                 {
                     last_prefetch_address = target_reg + iter->GetConsumerOffset();
-                    PushInPrefetchList(current_address+offset, last_prefetch_address, addresses, degree);
+                    PushInPrefetchList(current_va+offset, last_prefetch_address, addresses, degree);
 
-                    if ( ((last_prefetch_address & PAGE_MASK) == (current_address & PAGE_MASK)) )
+                    if ( ((last_prefetch_address & PAGE_MASK) == (current_va & PAGE_MASK)) )
                     {
                         if ((last_prefetch_address>0x600000 && last_prefetch_address<0x6fffff) || (last_prefetch_address>0x700000000000 && last_prefetch_address<0x800000000000))
                         {
                             DPRINTF(HWPrefetch, "\t\tDepList PR: 0x%lx, CN: 0x%lx, Getting data from 0x%lx, size:%d\n",iter->GetProducerPC(), iter->GetConsumerPC(), last_prefetch_address, iter->GetDataSize());
-                            for(int32_t j = iter->GetDataSize()-1; j >= 0; --j)
-                            {
-                                temp_target_reg = (temp_target_reg << 8) | reinterpret_cast<char *>(last_prefetch_address)[j];
-                            }
+                            //for(int32_t j = iter->GetDataSize()-1; j >= 0; --j)
+                            //{
+                            //    temp_target_reg = (temp_target_reg << 8) | reinterpret_cast<char *>(last_prefetch_address)[j];
+                            //}
                             DPRINTF(HWPrefetch, "\t\tDepList data is 0x%lx\n", temp_target_reg);
                         }
                         else
@@ -381,15 +435,15 @@ TLBFreePrefetcher::calculatePrefetch(const PacketPtr &pkt,
                     {
                         PushInPrefetchList(last_prefetch_address, temp_target_reg + iter4->GetConsumerOffset(), addresses, degree);
                         last_prefetch_address = temp_target_reg + iter4->GetConsumerOffset();
-                        if ( ((last_prefetch_address & PAGE_MASK) == (current_address & PAGE_MASK)) )
+                        if ( ((last_prefetch_address & PAGE_MASK) == (current_va & PAGE_MASK)) )
                         {
                             if ((last_prefetch_address>0x600000 && last_prefetch_address<0x6fffff) || (last_prefetch_address>0x700000000000 && last_prefetch_address<0x800000000000))
                             {
                                 DPRINTF(HWPrefetch, "\t\tDepList PR: 0x%lx, CN: 0x%lx, Getting data from 0x%lx, size:%d\n",iter4->GetProducerPC(), iter4->GetConsumerPC(), last_prefetch_address, iter4->GetDataSize());
-                                for(int32_t j = iter4->GetDataSize()-1; j >= 0; --j)
-                                {
-                                    temp_target_reg = (temp_target_reg << 8) | reinterpret_cast<char *>(last_prefetch_address)[j];
-                                }
+                                //for(int32_t j = iter4->GetDataSize()-1; j >= 0; --j)
+                                //{
+                                //    temp_target_reg = (temp_target_reg << 8) | reinterpret_cast<char *>(last_prefetch_address)[j];
+                                //}
                                 DPRINTF(HWPrefetch, "\t\tDepList data is 0x%lx\n", temp_target_reg);
                             }
                             else
@@ -402,16 +456,14 @@ TLBFreePrefetcher::calculatePrefetch(const PacketPtr &pkt,
             }
         }
 #endif
-        //cout<<endl;
-        //cout<<endl;
-        //cout<<"IP: "<<hex<<pkt->req->getPC()<<endl;
-        //print addresses
         for(std::vector<Addr>::iterator it = addresses.begin(); it != addresses.end(); ++it)
         {
             DPRINTF(HWPrefetch, "After push back in prefetch address: 0x%lx\n", *it);
             //cout<<"After push back in prefetch address: 0x"<<hex<<*it<<endl;
         }
     }
+    free(data_buf);
+    DPRINTF(HWPrefetch, "Done calculatePrefetch!\n");
 }
 
 TLBFreePrefetcher*
